@@ -22,7 +22,7 @@ concurrency:
 env:
   ACR_NAME: ${{ vars.ACR_NAME || 'byltexacr' }}
   ACR_LOGIN_SERVER: ${{ vars.ACR_LOGIN_SERVER || format('{0}.azurecr.io', vars.ACR_NAME || 'byltexacr') }}
-  IMAGE_NAME: ${{ vars.IMAGE_NAME || 'api' }}
+  IMAGE_NAME: api
 
 jobs:
   build:
