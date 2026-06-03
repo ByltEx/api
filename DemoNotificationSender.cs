@@ -51,6 +51,11 @@ public sealed class DemoNotificationSender : IDemoNotificationSender
             throw new InvalidOperationException("Resend API key is not configured.");
         }
 
+        if (string.IsNullOrWhiteSpace(_resend.From))
+        {
+            throw new InvalidOperationException("Resend sender address (From) is not configured.");
+        }
+
         var recipients = _notification.Recipients
             .Where(static e => !string.IsNullOrWhiteSpace(e))
             .Select(static e => e.Trim())
@@ -71,6 +76,7 @@ public sealed class DemoNotificationSender : IDemoNotificationSender
 
         var payload = new ResendSendEmailRequest
         {
+            From = _resend.From.Trim(),
             To = recipients,
             ReplyTo = email,
             Subject = $"Demo request — {company}",
@@ -181,6 +187,9 @@ public sealed class DemoNotificationSender : IDemoNotificationSender
 
     private sealed class ResendSendEmailRequest
     {
+        [JsonPropertyName("from")]
+        public required string From { get; init; }
+
         [JsonPropertyName("to")]
         public required string[] To { get; init; }
 
