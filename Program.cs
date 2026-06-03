@@ -8,6 +8,12 @@ var builder = WebApplication.CreateBuilder(args);
 
 builder.Services.Configure<DemoRateLimitOptions>(
     builder.Configuration.GetSection(DemoRateLimitOptions.SectionName));
+builder.Services.Configure<ResendOptions>(
+    builder.Configuration.GetSection(ResendOptions.SectionName));
+builder.Services.Configure<DemoNotificationOptions>(
+    builder.Configuration.GetSection(DemoNotificationOptions.SectionName));
+builder.Services.Configure<SiteCorsOptions>(
+    builder.Configuration.GetSection(SiteCorsOptions.SectionName));
 
 builder.Services.Configure<ForwardedHeadersOptions>(options =>
 {
@@ -15,6 +21,27 @@ builder.Services.Configure<ForwardedHeadersOptions>(options =>
     // Trust proxy headers from the ingress/gateway (single-hop in cluster).
     options.KnownIPNetworks.Clear();
     options.KnownProxies.Clear();
+});
+
+var corsOrigins = builder.Configuration
+    .GetSection(SiteCorsOptions.SectionName)
+    .Get<SiteCorsOptions>()?.AllowedOrigins ?? new SiteCorsOptions().AllowedOrigins;
+
+builder.Services.AddCors(options =>
+{
+    options.AddPolicy("website", policy =>
+    {
+        policy.WithOrigins(corsOrigins)
+            .WithMethods("POST", "OPTIONS")
+            .WithHeaders("Content-Type");
+    });
+});
+
+builder.Services.AddHttpClient<IDemoNotificationSender, DemoNotificationSender>(client =>
+{
+    client.BaseAddress = new Uri("https://api.resend.com/");
+    client.DefaultRequestHeaders.Accept.Add(
+        new System.Net.Http.Headers.MediaTypeWithQualityHeaderValue("application/json"));
 });
 
 builder.Services.AddRateLimiter(options =>
@@ -66,11 +93,16 @@ if (app.Environment.IsDevelopment())
     app.UseHttpsRedirection();
 }
 
+app.UseCors("website");
 app.UseRateLimiter();
 
 app.MapGet("/health", () => Results.Ok());
 
-app.MapPost("/api/demo", async (DemoRequest request, ILogger<Program> logger) =>
+app.MapPost("/api/demo", async (
+    DemoRequest request,
+    IDemoNotificationSender notificationSender,
+    ILogger<Program> logger,
+    CancellationToken cancellationToken) =>
 {
     var errors = new Dictionary<string, string[]>(StringComparer.Ordinal);
 
@@ -106,7 +138,19 @@ app.MapPost("/api/demo", async (DemoRequest request, ILogger<Program> logger) =>
         request.Email.Trim(),
         request.Company.Trim());
 
-    await Task.CompletedTask;
+    try
+    {
+        await notificationSender.SendAsync(request, id, cancellationToken);
+    }
+    catch (Exception ex)
+    {
+        logger.LogError(ex, "Failed to send demo notification for {DemoRequestId}", id);
+        return Results.Problem(
+            title: "Unable to submit demo request",
+            detail: "Something went wrong on our end. Please try again later.",
+            statusCode: StatusCodes.Status503ServiceUnavailable);
+    }
+
     return Results.Created($"/api/demo/{id}", new DemoRequestResponse(id));
 })
 .RequireRateLimiting("demo")
@@ -137,13 +181,3 @@ record DemoRateLimitOptions
     public int PerHour { get; init; } = 3;
     public int PerDay { get; init; } = 5;
 }
-
-record DemoRequest(
-    string Name,
-    string Email,
-    string Company,
-    string? Role,
-    string? Phone,
-    string? Message);
-
-record DemoRequestResponse(Guid Id);
