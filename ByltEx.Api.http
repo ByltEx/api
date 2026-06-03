@@ -1,6 +1,15 @@
 @ByltEx.Api_HostAddress = http://localhost:5033
 
-GET {{ByltEx.Api_HostAddress}}/weatherforecast/
-Accept: application/json
+POST {{ByltEx.Api_HostAddress}}/api/demo
+Content-Type: application/json
+
+{
+  "name": "Jane Doe",
+  "email": "jane@example.com",
+  "company": "Acme Construction",
+  "role": "Estimator",
+  "phone": "+1 555 0100",
+  "message": "Interested in a walkthrough next week."
+}
 
 ###
