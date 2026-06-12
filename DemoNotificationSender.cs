@@ -73,12 +73,17 @@ public sealed class DemoNotificationSender : IDemoNotificationSender
         var role = string.IsNullOrWhiteSpace(request.Role) ? null : request.Role.Trim();
         var phone = string.IsNullOrWhiteSpace(request.Phone) ? null : request.Phone.Trim();
         var message = string.IsNullOrWhiteSpace(request.Message) ? null : request.Message.Trim();
+        // Forms may pass a preferred contact address; fall back to the form email.
+        var replyTo = !string.IsNullOrWhiteSpace(request.ReplyTo)
+            && request.ReplyTo.Contains('@', StringComparison.Ordinal)
+                ? request.ReplyTo.Trim()
+                : email;
 
         var payload = new ResendSendEmailRequest
         {
             From = _resend.From.Trim(),
             To = recipients,
-            ReplyTo = email,
+            ReplyTo = replyTo,
             Subject = $"Demo request — {company}",
             Html = BuildHtml(requestId, name, email, company, role, phone, message),
             Text = BuildText(requestId, name, email, company, role, phone, message),
