@@ -6,6 +6,7 @@ public record DemoRequest(
     string Company,
     string? Role,
     string? Phone,
-    string? Message);
+    string? Message,
+    string? ReplyTo);
 
 public record DemoRequestResponse(Guid Id);
